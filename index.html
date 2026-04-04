@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jarvis Car Scan AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+        body { font-family: 'Poppins', sans-serif; background: #020617; color: #f8fafc; }
+        .jarvis-card { background: rgba(30, 41, 59, 0.5); backdrop-filter: blur(12px); border: 1px solid rgba(59, 130, 246, 0.2); }
+        .glow-button { background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); transition: all 0.3s ease; box-shadow: 0 0 15px rgba(59, 130, 246, 0.4); }
+        .glow-button:hover { transform: translateY(-2px); box-shadow: 0 0 25px rgba(59, 130, 246, 0.6); }
+        .loader { border-top-color: #60a5fa; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .scanner-line { width: 100%; height: 2px; background: #3b82f6; box-shadow: 0 0 10px #3b82f6; animation: scan 2s infinite linear; }
+        @keyframes scan { 0% { transform: translateY(-20px); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(60px); opacity: 0; } }
+    </style>
+</head>
+<body class="min-h-screen pb-10">
+    <div class="max-w-xl mx-auto px-4 pt-8">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tighter text-blue-400">JARVIS <span class="text-white">v2.0</span></h1>
+                <p class="text-slate-400 text-sm">Car Scan Assistant</p>
+            </div>
+            <div class="h-12 w-12 rounded-full bg-blue-500/20 border border-blue-500/50 flex items-center justify-center animate-pulse">
+                <div class="h-6 w-6 rounded-full bg-blue-400"></div>
+            </div>
+        </div>
+
+        <div class="jarvis-card rounded-3xl p-6 shadow-2xl mb-6">
+            <div id="upload-section">
+                <div class="text-center mb-6">
+                    <p class="text-slate-300">Uplode the scan PDF below</p>
+                </div>
+
+                <label for="file-input" class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-blue-500/30 rounded-2xl cursor-pointer hover:bg-blue-500/5 transition-colors">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-10 h-10 mb-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        <p class="mb-2 text-sm font-semibold">Select PDF Report</p>
+                    </div>
+                    <input id="file-input" type="file" class="hidden" accept="application/pdf" />
+                </label>
+
+                <div class="mt-4 flex items-center text-xs text-slate-500">
+                    <div class="flex-grow h-px bg-slate-800"></div>
+                    <span class="px-3">OR PASTE TEXT</span>
+                    <div class="flex-grow h-px bg-slate-800"></div>
+                </div>
+
+                <textarea id="manual-text" placeholder="Paste scan text here if PDF doesn't work..." class="w-full mt-4 bg-slate-900/50 border border-slate-700 rounded-xl p-3 text-sm focus:border-blue-500 focus:outline-none h-24 text-slate-300"></textarea>
+                
+                <button id="analyze-btn" class="w-full mt-6 py-4 rounded-xl font-bold glow-button text-white">ANALYZE NOW</button>
+            </div>
+
+            <div id="loading" class="hidden py-10 text-center">
+                <div class="loader w-12 h-12 border-4 border-slate-700 rounded-full mx-auto mb-4"></div>
+                <p id="loading-msg" class="text-blue-400 font-medium">Jarvis is reading the report...</p>
+            </div>
+
+            <div id="result-section" class="hidden">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold text-blue-400 flex items-center">
+                        <span class="mr-2">🔧</span> Scan Results
+                    </h2>
+                    <button id="reset-btn" class="text-xs text-slate-400 hover:text-white uppercase px-3 py-1 bg-slate-800 rounded-lg">New Scan</button>
+                </div>
+                
+                <div class="relative w-full flex justify-center py-6 mb-6 bg-slate-900/50 rounded-xl border border-blue-500/20 overflow-hidden">
+                    <div class="scanner-line absolute top-0 left-0"></div>
+                    <svg class="w-40 h-24 text-blue-500/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 16H9m10 0h3v-3.15a1 1 0 00-.84-.99L16 11l-2.7-3.6a2 2 0 00-1.6-.8H8.3a2 2 0 00-1.6.8L4 11l-5.16.86a1 1 0 00-.84.99V16h3m14 0a2 2 0 11-4 0 2 2 0 014 0zM7 16a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        <circle cx="12" cy="12" r="1.5" fill="currentColor" class="animate-pulse" />
+                    </svg>
+                </div>
+
+                <div id="ai-output" class="text-slate-200 text-base leading-relaxed space-y-4 p-4 bg-slate-800/40 rounded-xl border-l-4 border-blue-500">
+                    </div>
+            </div>
+        </div>
+
+        <p class="text-center text-slate-600 text-[10px] uppercase tracking-widest">Shazeb Labs • Madinah Edition</p>
+    </div>
+
+    <script>
+        const apiKey = ""; // Runtime provides key
+        const fileInput = document.getElementById('file-input');
+        const manualText = document.getElementById('manual-text');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const uploadSection = document.getElementById('upload-section');
+        const loading = document.getElementById('loading');
+        const resultSection = document.getElementById('result-section');
+        const aiOutput = document.getElementById('ai-output');
+        const resetBtn = document.getElementById('reset-btn');
+        const loadingMsg = document.getElementById('loading-msg');
+
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        analyzeBtn.onclick = async () => {
+            let textToAnalyze = manualText.value.trim();
+            const file = fileInput.files[0];
+
+            if (!textToAnalyze && !file) {
+                alert("Please upload a PDF or paste some text first, Boss!");
+                return;
+            }
+
+            uploadSection.classList.add('hidden');
+            loading.classList.remove('hidden');
+
+            try {
+                if (file) {
+                    loadingMsg.innerText = "Extracting text from PDF...";
+                    textToAnalyze = await extractText(file);
+                }
+
+                if (!textToAnalyze) throw new Error("Could not read any text from the file.");
+
+                loadingMsg.innerText = "Jarvis is analyzing the faults...";
+                const response = await callGemini(textToAnalyze);
+                displayResult(response);
+            } catch (err) {
+                displayResult(`<span class="text-red-400">Error: ${err.message}</span>`);
+            } finally {
+                loading.classList.add('hidden');
+                resultSection.classList.remove('hidden');
+            }
+        };
+
+        async function extractText(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = "";
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                fullText += content.items.map(item => item.str).join(" ");
+            }
+            return fullText;
+        }
+
+        async function callGemini(scanText) {
+            // The prompt has been updated to force the greeting and the specific order
+            const systemPrompt = `You are Jarvis, a helpful car expert. 
+            Rule 1: Start your entire response exactly with: "Assalamualikum sir i am Jarvis"
+            Rule 2: Read the car report and explain it in average Indian English (Hinglish mix is okay).
+            Rule 3: Structure your answer EXACTLY in this order:
+            - **Main Error/Fault:** (State the specific DTC codes and the exact part that is broken FIRST).
+            - **Severity:** (Is it urgent or okay to drive?).
+            - **Action Plan:** (What needs to be checked or changed).
+            Keep it brief, highly accurate, and helpful for a mechanic.`;
+            
+            const payload = {
+                contents: [{ parts: [{ text: `Here is the car report text: ${scanText}` }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) throw new Error("Gemini API Error. Check your connection.");
+            const data = await response.json();
+            return data.candidates[0].content.parts[0].text;
+        }
+
+        function displayResult(text) {
+            const html = text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong class="text-blue-400 font-bold">$1</strong>');
+            aiOutput.innerHTML = html;
+        }
+
+        resetBtn.onclick = () => {
+            resultSection.classList.add('hidden');
+            uploadSection.classList.remove('hidden');
+            fileInput.value = "";
+            manualText.value = "";
+        };
+    </script>
+</body>
+</html>
