@@ -9,148 +9,207 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
 
 <style>
-body { background:#020617; color:#fff; font-family:Poppins; }
-.glow { background:#2563eb; padding:12px; border-radius:10px; }
-.loader { border:4px solid #333; border-top:4px solid #3b82f6; border-radius:50%; width:40px; height:40px; animation:spin 1s linear infinite;}
+body { background:#020617; color:white; font-family:Poppins; }
+.jarvis-card { background:rgba(30,41,59,0.5); backdrop-filter:blur(12px); border:1px solid rgba(59,130,246,0.2); }
+.glow-button { background:linear-gradient(135deg,#3b82f6,#1d4ed8); }
+.loader { border-top-color:#60a5fa; animation:spin 1s linear infinite; }
 @keyframes spin {100%{transform:rotate(360deg)}}
 </style>
 </head>
 
-<body>
+<body class="p-4">
 
-<div style="max-width:500px;margin:auto;padding:20px">
+<h1 class="text-3xl text-blue-400 font-bold">JARVIS v4</h1>
+<p class="text-gray-400">Hybrid AI (Online + Offline)</p>
 
-<h2>🚗 Jarvis AI Scanner</h2>
+<div class="jarvis-card p-4 rounded-xl mt-4">
 
-<input type="file" id="file" accept="application/pdf"><br><br>
-<input type="file" id="img" accept="image/*"><br><br>
+<input type="file" id="pdf" accept="application/pdf" class="mb-2"/>
+<input type="file" id="img" accept="image/*" class="mb-2"/>
 
-<textarea id="text" placeholder="Paste text..." style="width:100%;height:80px"></textarea>
+<textarea id="text" placeholder="Paste scan text..." class="w-full p-2 bg-black rounded"></textarea>
 
-<br><br>
-<button class="glow" onclick="analyze()">Analyze</button>
+<button onclick="analyze()" class="glow-button w-full mt-3 p-3 rounded">✨ ANALYZE</button>
 
-<div id="loading" style="display:none"><div class="loader"></div></div>
+<div id="loading" class="hidden mt-4 text-center">
+<div class="loader w-10 h-10 border-4 rounded-full mx-auto"></div>
+<p id="msg" class="text-blue-400 mt-2"></p>
+</div>
 
-<div id="result"></div>
+<div id="output" class="mt-4 whitespace-pre-wrap"></div>
 
-<hr>
-
-<input id="chat" placeholder="Ask something..." style="width:80%">
-<button onclick="chat()">Send</button>
+<button onclick="speak()" class="mt-3 bg-blue-500 p-2 rounded">🔊 Speak</button>
 
 </div>
 
 <script>
-const API_KEY = "AIzaSyBh4nadOSEMhGfQhxcylpLTK2jd-5rA408";
-const MODEL = "gemini-1.5-flash";
+
+const API_KEY = "AIzaSyCmi3pyMBJoE0oOOVZX8W6DWZubo1TG2MU"; // optional
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
-"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js";
+'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
 
-let lastResult = "";
+let lastText = "";
 
-// ===== MAIN ANALYZE =====
-async function analyze() {
-const file = document.getElementById("file").files[0];
-const img = document.getElementById("img").files[0];
-const text = document.getElementById("text").value;
+// 🔧 OFFLINE DATABASE
+const faultDB = {
+"P0300": {issue:"Engine misfire", severity:"Medium", fix:"Spark plug ya ignition coil check karo"},
+"P0171": {issue:"Fuel system lean", severity:"High", fix:"Fuel pump ya air leak check karo"},
+"P0420": {issue:"Catalytic efficiency low", severity:"Medium", fix:"Catalytic converter check karo"},
+"P0128": {issue:"Coolant temp low", severity:"Low", fix:"Thermostat replace karo"}
+};
 
-if (!file && !img && !text) {
-alert("Give input!");
-return;
+// 🔍 EXTRACT CODES
+function extractCodes(text){
+return text.match(/P\d{4}/g) || [];
 }
 
-document.getElementById("loading").style.display="block";
+// 🧠 OFFLINE AI
+function offlineAnalyze(text){
 
-let extractedText = text;
-let base64 = null;
+const codes = extractCodes(text);
 
-try {
+let result = "Assalamualikum sir, main Jarvis hoon 👋\n\n";
 
-if (file) extractedText = await readPDF(file);
-if (img) base64 = await toBase64(img);
-
-const res = await callAI(extractedText, base64);
-
-lastResult = res;
-document.getElementById("result").innerHTML = res;
-
-} catch(e) {
-document.getElementById("result").innerHTML = "❌ ERROR: "+e.message;
+if(codes.length===0){
+return result + "Koi clear fault code nahi mila. Mechanic check better rahega.";
 }
 
-document.getElementById("loading").style.display="none";
+codes.forEach(c=>{
+if(faultDB[c]){
+const d = faultDB[c];
+result += `Code: ${c}
+Issue: ${d.issue}
+Severity: ${d.severity}
+Fix: ${d.fix}\n\n`;
+}else{
+result += `${c} detected but database me nahi hai\n\n`;
+}
+});
+
+return result;
 }
 
-// ===== PDF =====
+// 📄 READ PDF
 async function readPDF(file){
-const buffer = await file.arrayBuffer();
-const pdf = await pdfjsLib.getDocument({data:buffer}).promise;
+const pdf = await pdfjsLib.getDocument(await file.arrayBuffer()).promise;
 let text="";
 for(let i=1;i<=pdf.numPages;i++){
 const page=await pdf.getPage(i);
 const content=await page.getTextContent();
-text+=content.items.map(x=>x.str).join(" ");
+text+=content.items.map(i=>i.str).join(" ");
 }
 return text;
 }
 
-// ===== IMAGE =====
+// 🖼️ IMAGE → BASE64
 function toBase64(file){
-return new Promise((res,rej)=>{
+return new Promise(r=>{
 const reader=new FileReader();
+reader.onload=()=>r(reader.result.split(",")[1]);
 reader.readAsDataURL(file);
-reader.onload=()=>res(reader.result.split(",")[1]);
-reader.onerror=rej;
 });
 }
 
-// ===== AI CALL =====
-async function callAI(text, img){
+// ☁️ ONLINE AI
+async function callAI(text,img){
+
+const prompt = `
+You are Jarvis AI car expert.
+Speak in Hinglish (Indian style).
+Explain simple.
+
+Give:
+1. Main Issue
+2. Severity
+3. Fix
+
+Text: ${text}
+`;
 
 const body = {
-contents:[{
-parts:[
-{ text: "You are Jarvis AI Car Expert.\nAnalyze:\n"+text }
+contents: [{
+parts: [
+{ text: prompt },
+...(img ? [{ inlineData:{ mimeType:"image/jpeg", data:img }}] : [])
 ]
 }]
 };
 
-if(img){
-body.contents[0].parts.push({
-inlineData:{mimeType:"image/jpeg",data:img}
-});
-}
-
 const res = await fetch(
-`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${API_KEY}`,
+`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
 {
 method:"POST",
 headers:{ "Content-Type":"application/json" },
-body:JSON.stringify(body)
+body: JSON.stringify(body)
 });
+
+if(!res.ok) throw new Error("API failed");
 
 const data = await res.json();
 
-if(!res.ok){
-console.error(data);
-throw new Error(data.error?.message || "API failed");
+return data.candidates?.[0]?.content?.parts?.[0]?.text;
 }
 
-return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response";
+// 🚀 MAIN ANALYZE
+async function analyze(){
 
+const pdf = document.getElementById("pdf").files[0];
+const img = document.getElementById("img").files[0];
+const textInput = document.getElementById("text").value;
+
+document.getElementById("loading").classList.remove("hidden");
+
+let content="";
+
+try{
+
+if(pdf){
+document.getElementById("msg").innerText="Reading PDF...";
+content = await readPDF(pdf);
+}else{
+content = textInput;
 }
 
-// ===== CHAT =====
-async function chat(){
-const q = document.getElementById("chat").value;
-if(!q) return;
+let base64=null;
 
-const res = await callAI("Context:"+lastResult+"\nQ:"+q);
+if(img){
+base64 = await toBase64(img);
+}
 
-document.getElementById("result").innerHTML += "<br><br><b>You:</b> "+q+"<br><b>Jarvis:</b> "+res;
-document.getElementById("chat").value="";
+document.getElementById("msg").innerText="Thinking...";
+
+// 🔥 TRY ONLINE FIRST
+let result;
+
+try{
+if(API_KEY){
+result = await callAI(content, base64);
+}else{
+throw new Error("No API");
+}
+}catch(e){
+// ⚡ FALLBACK OFFLINE
+result = offlineAnalyze(content);
+}
+
+lastText = result;
+document.getElementById("output").innerText = result;
+
+}catch(e){
+document.getElementById("output").innerText = "Error: "+e.message;
+}
+
+document.getElementById("loading").classList.add("hidden");
+}
+
+// 🔊 SPEECH
+function speak(){
+if(!lastText) return;
+const u = new SpeechSynthesisUtterance(lastText);
+u.rate = 1.25;
+u.lang = "en-IN";
+speechSynthesis.speak(u);
 }
 
 </script>
